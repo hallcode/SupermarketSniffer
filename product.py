@@ -2,18 +2,25 @@ import uuid
 from datetime import datetime
 
 
+class Category:
+    def __init__(self, name: str, search_term: str, product_type: str):
+        self.name = name
+        self.search_term = search_term
+        self.product_type = product_type
+
+
 class Product:
     def __init__(
         self,
         title: str,
         id: str,
-        category: str,
+        category: Category,
         search_term: str,
         unit_price: int,
         price_per_weight: int,
         weight_unit: str,
         url: str,
-        seller: str
+        seller: str,
     ):
         self.id = id
         self.title = title
@@ -30,3 +37,6 @@ class Product:
 
         today = datetime.now()
         self.timestamp = today.timestamp()
+
+
+search_categories = [Category("Milk", "milk", "Dairy")]
