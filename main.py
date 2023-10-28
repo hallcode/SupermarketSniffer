@@ -3,6 +3,7 @@ from product import search_categories
 from scanner import scan
 from playwright.sync_api import sync_playwright
 
+
 def start_scan():
     with sync_playwright() as p:
         browser = p.firefox.launch(headless=False)

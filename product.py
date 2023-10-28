@@ -39,4 +39,4 @@ class Product:
         self.timestamp = today.timestamp()
 
 
-search_categories = [Category("Milk", "milk", "Dairy")]
+search_categories = [Category("Milk", "skimmed milk", "Dairy")]

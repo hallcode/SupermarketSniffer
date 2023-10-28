@@ -1,33 +1,22 @@
-import os.path
+
 import re
 from datetime import date
 
 from brands import Brand
 from product import Category, Product
+from playwright.sync_api import Page
 
 
-def scan(page, brand: Brand, category: Category):
+
+
+def scan(page: Page, brand: Brand, category: Category):
     print("Starting " + brand.name)
 
-    output_path = os.path.join(os.getcwd(), "output", date.today().isoformat())
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-
-    page.goto(brand.start_url)
+    # Init browser page
+    brand.set_page(page)
 
     # Dismiss cookie notice
-    try:
-        cookie_button = page.get_by_role("button").get_by_text(
-            re.compile("allow|accept", re.IGNORECASE)
-        )
-        cookie_button.wait_for()
-        cookie_button = cookie_button.first
-        cookie_button.hover()
-        cookie_button.click()
-        page.wait_for_load_state("domcontentloaded")
-    except:
-        # If there's no cookie notice... we don't care
-        pass
+    brand.dismiss_cookie_notice()
 
     # Try to find the search bar
     search_input = page.get_by_placeholder(re.compile("search|find", re.IGNORECASE))
@@ -36,5 +25,8 @@ def scan(page, brand: Brand, category: Category):
     search_input.press("Enter")
     page.wait_for_load_state("networkidle")
 
-    screenshot_name = brand.name.lower() + "_" + category.name.lower() + ".png"
-    page.screenshot(path=os.path.join(output_path, screenshot_name))
+    # Get product URLs
+    urls = brand.get_product_urls(search_term=category.search_term)
+    products = []
+    for u in urls:
+        brand.scan_product_page(u, category)
