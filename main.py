@@ -2,6 +2,7 @@ from brands import brands
 from product import search_categories
 from scanner import scan
 from playwright.sync_api import sync_playwright
+import csv
 
 
 def start_scan():

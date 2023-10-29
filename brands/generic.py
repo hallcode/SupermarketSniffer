@@ -6,6 +6,7 @@ from urllib.parse import urlparse, urljoin
 from datetime import date, datetime
 from product import Category, Product
 from PIL import Image, ImageDraw, ImageFont
+from csv import csv
 
 font = ImageFont.truetype(
     font=os.path.join(os.getcwd(), "assets", "B612Mono-Regular.ttf"), size=10
@@ -129,26 +130,89 @@ class Brand:
 
     def scan_product_page(self, product_url: str, category: Category):
         self.page.goto(product_url)
-        self.page.wait_for_load_state('networkidle')
+        self.page.wait_for_load_state("networkidle")
 
+        # Create product object
         product = Product(
-            title=self.page.title(),
-            id="n/a",
+            title=self.get_product_title(product_url),
+            id=self.get_product_id(product_url),
             category=category,
-            unit_price=0,
-            price_per_weight=0,
-            weight_unit="",
+            unit_price=int(self.get_product_price()),
+            price_per_weight=self.get_product_price_per_weight(),
+            weight_unit=self.get_product_unit(),
             url=product_url,
-            seller=self.name
+            seller=self.name,
         )
 
+        if product.unit_price == 0:
+            return product
+
+        csv.add_line(product)
         self.screenshot_page(product)
 
         return product
 
+    def get_product_id(self, product_url: str = ""):
+        # See if we can get the ID from the URL
+        # It's probably a string of numbers
+        url = urlparse(product_url)
+        id = re.search(re.compile("\d{4,}[\d-]*"), url.path)
+        if id:
+            return id.group()
+
+        return ""
+
+    def get_product_title(self, product_url: str = ""):
+        # Try seeing if there is a header which contains the search term
+        pattern = self.current_search_term.replace(" ", ".*")
+        pattern = re.compile(pattern, re.IGNORECASE)
+        header = self.page.get_by_role("heading").filter(has_text=pattern).first
+        if header is not None:
+            return header.inner_text()
+
+        # If not, does the URL contain the search term?
+        search_term = self.current_search_term.replace(" ", "[\w\d-]*").lower()
+        pattern = f"\/([\w-]*{search_term}[\w\d-]*milk[\w-]*)[\/-]"
+        pattern = re.compile(pattern)
+        path = urlparse(product_url).path
+        match = re.search(pattern, path)
+        if match:
+            try:
+                return match.group(1)
+            except:
+                pass
+
+        return self.page.title()
+
+    def get_product_price(self):
+        """
+        Get the package price from the product page
+        :return: the price of one unit IN PENCE
+        """
+        bs = BeautifulSoup(self.page.inner_html("body"), "lxml")
+        price_tag = bs.find(class_=re.compile("price"), recursive=True).find(
+            string=re.compile("£\d+\.\d+\w*$")
+        )
+
+        if price_tag is None:
+            return 0
+
+        price_raw = price_tag.get_text()
+        try:
+            price = re.compile("£(\d+\.\d+)\w*$").match(price_raw).group(1)
+            return float(price) * 100
+        except:
+            return 0
+
+    def get_product_price_per_weight(self):
+        return 0
+
+    def get_product_unit(self):
+        return ""
+
     def screenshot_page(self, product: Product):
         output_path = os.path.join(
-            os.getcwd(), "output", date.today().isoformat(), self.name
+            os.getcwd(), "output", date.today().isoformat(), "screenshots"
         )
         if not os.path.exists(output_path):
             os.makedirs(output_path)
@@ -173,7 +237,7 @@ class Brand:
                 font=font,
             )
 
-            timestamp = datetime.fromtimestamp(product.timestamp).isoformat()
+            timestamp = datetime.fromtimestamp(product.timestamp).strftime('(%a) %x @ %X')
             renderer.text(
                 (25, height - 25),
                 timestamp,
@@ -181,6 +245,16 @@ class Brand:
                 fill="#000000",
                 font=font,
             )
+
+            renderer.rectangle(
+                ((width-100, height - 55), (width - 20, height - 20)), fill="#d6d6d6"
+            )
+            price = product.unit_price/100
+            renderer.text(
+                (width-25, height - 40),
+                f"£{price:.2f}",
+                anchor="rs",
+                fill="#000000",
+                font=font,
+            )
             screenshot.save(screenshot_path)
-
-

@@ -26,4 +26,5 @@ def scan(page: Page, brand: Brand, category: Category):
     urls = brand.get_product_urls(search_term=category.search_term)
     products = []
     for u in urls:
+        # The following line does all the work
         brand.scan_product_page(u, category)

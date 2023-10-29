@@ -1,5 +1,6 @@
 from brands.generic import Brand
 
+
 class AsdaBrand(Brand):
     def dismiss_cookie_notice(self):
         if not self.page:
