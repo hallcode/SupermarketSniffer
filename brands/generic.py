@@ -12,6 +12,14 @@ font = ImageFont.truetype(
     font=os.path.join(os.getcwd(), "assets", "B612Mono-Regular.ttf"), size=10
 )
 
+MONEY_PATTERN = r"[0-9.]+"
+UNIT_PATTERN = r"\s?(?:per|/|\s)+(each|[01aegiklmorst]+)"
+PRICE_PER_POUNDS_PATTERN = rf"£({MONEY_PATTERN}){UNIT_PATTERN}"
+PRICE_PER_PENNIES_PATTERN = rf"({MONEY_PATTERN})p{UNIT_PATTERN}"
+
+DOM = "domcontentloaded"
+NETWORK = "networkidle"
+
 
 class Brand:
     # This class contains all the functionality and _should_ work on each
@@ -22,6 +30,7 @@ class Brand:
     def __init__(self, name: str, start_url):
         self.name = name
         self.start_url = start_url
+        self.wait_method = DOM
 
     def set_page(self, page: Page):
         self.page = page
@@ -53,7 +62,9 @@ class Brand:
         current_base_url = urlparse(self.page.url)
 
         links = []
-        bs = BeautifulSoup(self.page.inner_html("body"), "lxml")
+        main_by_role = self.page.get_by_role("main").or_(self.page.locator('body'))
+        main_by_role.highlight()
+        bs = BeautifulSoup(main_by_role.inner_html(), "lxml")
         self.current_search_term = search_term
         products = bs.find_all(self.product_list_item, limit=limit * 2)
 
@@ -84,6 +95,13 @@ class Brand:
 
         return links
 
+    def get_main_element(self):
+        main_by_role = self.page.get_by_role("main").or_(self.page.locator('body'))
+        if main_by_role:
+            main_by_role.scroll_into_view_if_needed()
+            return main_by_role
+
+
     def string_contains_search_terms(self, string: str):
         try:
             terms = self.current_search_term.lower().split(" ")
@@ -96,6 +114,24 @@ class Brand:
         except AttributeError:
             return False
 
+    def string_contains_price_per(self, string: str):
+        string = string.lstrip("(").rstrip(")")
+        if (
+            not string.startswith("£")
+            and re.compile(rf"{MONEY_PATTERN}p", re.IGNORECASE).search(string) is None
+        ):
+            return False
+
+        pounds_pattern = re.compile(PRICE_PER_POUNDS_PATTERN, re.IGNORECASE)
+        if pounds_pattern.search(string):
+            return True
+
+        pennies_pattern = re.compile(PRICE_PER_PENNIES_PATTERN, re.IGNORECASE)
+        if pennies_pattern.search(string):
+            return True
+
+        return False
+
     def product_list_item(self, element: Tag):
         """
         Return True if the element looks like a product listing
@@ -106,7 +142,8 @@ class Brand:
             raise Exception
 
         # Must be a list item
-        if element.name != "li":
+        # Or (for Aldi) some random shit
+        if element.name != "li" and not element.get("data-qa") == "search-results":
             return False
 
         # Must contain an image
@@ -142,7 +179,7 @@ class Brand:
     def scan_product_page(self, product_url: str, category: Category):
         self.page.goto(product_url)
         self.current_search_term = category.search_term
-        self.page.wait_for_load_state("networkidle")
+        self.page.wait_for_load_state(self.wait_method, timeout=180000)
 
         # Create product object
         price_per, unit = self.get_product_price_weight()
@@ -177,8 +214,10 @@ class Brand:
 
     def get_product_title(self, product_url: str = ""):
         # Try seeing if there is a header which contains the search term
-        bs = BeautifulSoup(self.page.inner_html("body"), "lxml")
-        title_tag = bs.find(['h1', 'h2', 'h3', 'h4'], string=self.string_contains_search_terms)
+        bs = BeautifulSoup(self.get_main_element().inner_html(), "lxml")
+        title_tag = bs.find(
+            ["h1", "h2", "h3", "h4"], string=self.string_contains_search_terms
+        )
         if title_tag is not None:
             return title_tag.get_text()
 
@@ -201,33 +240,70 @@ class Brand:
         Get the package price from the product page
         :return: the price of one unit IN PENCE
         """
-        pounds_pattern = re.compile('£(\d+\.\d+)\s*$')
-        pennies_pattern = re.compile('(\d+[.\d]+)p\s*$')
-        bs = BeautifulSoup(self.page.inner_html("body"), "lxml")
-        price_tag = bs.find(class_=re.compile("price"), recursive=True).find(
-            string=[pounds_pattern, pennies_pattern]
-        )
+        pounds_pattern = re.compile(rf"£({MONEY_PATTERN})\s*$")
+        pennies_pattern = re.compile(rf"({MONEY_PATTERN})p\s*$")
+        bs = BeautifulSoup(self.get_main_element().inner_html(), "lxml")
+        price_tag = bs.find(
+            class_=re.compile("price", re.IGNORECASE), recursive=True
+        ).find(string=[pounds_pattern, pennies_pattern])
 
         price = 0
 
         if price_tag is not None:
             price_text = price_tag.get_text()
-            if price_text.startswith('£'):
-                price = float(price_text.lstrip('£')) * 100
-            if price_text.endswith('p'):
-                price = float(price_text.rstrip('p'))
+            try:
+                self.page.locator(
+                    price_tag.parent.name, has_text=price_text
+                ).first.scroll_into_view_if_needed()
+            except:
+                pass
+
+            if price_text.startswith("£"):
+                price = float(price_text.lstrip("£")) * 100
+            if price_text.endswith("p"):
+                price = float(price_text.rstrip("p"))
 
         return price
 
     def get_product_price_weight(self):
-        pattern = re.compile('£(\d+\.\d+)\s?(?:per|\/)?\s?(each|[0-9]*[kgmltrie]+)')
+        self.page.wait_for_load_state(DOM)
+        html = self.get_main_element().inner_html()
+        html = re.sub(r"<!.*?->", "", html)
+        bs = BeautifulSoup(html, "lxml")
+        price_tag = bs.find(string=self.string_contains_price_per, recursive=True)
 
-        return 0, "each"
+        price = 0
+        unit = ""
+        if price_tag is not None:
+            text = price_tag.get_text()
+            pounds_match = re.compile(PRICE_PER_POUNDS_PATTERN, re.IGNORECASE).search(
+                text
+            )
+            if pounds_match:
+                price, unit = float(pounds_match.group(1)) * 100, pounds_match.group(2)
+            else:
+                pennies_match = re.compile(
+                    PRICE_PER_PENNIES_PATTERN, re.IGNORECASE
+                ).search(text)
+                if pennies_match:
+                    price, unit = float(pennies_match.group(1)), pennies_match.group(2)
+
+            # Conform units to SI units
+            if unit in ("each", "Each", "EACH", "ea"):
+                unit = "EACH"
+            elif unit in ("l", "L", "litre", "liter", "lt", "ltr", "Ltr"):
+                unit = "L"
+            elif unit in ("100g", "100G", "100 grams"):
+                unit = "hg"  # Hectogram (100 grams)
+            elif unit in ("100ml", "100ML", "100 millilitre"):
+                unit = "dL"  # Decilitre (100ml) - not to be confused with decAlitre
+            elif unit in ("KG", "kg", "kilo", "kilogram", "Kilo", "Kilogram"):
+                unit = "kg"
+
+        return int(price), unit
 
     def screenshot_page(self, product: Product):
-        output_path = os.path.join(
-            os.getcwd(), "output", date.today().isoformat()
-        )
+        output_path = os.path.join(os.getcwd(), "output", date.today().isoformat())
         if not os.path.exists(output_path):
             os.makedirs(output_path)
 
@@ -251,7 +327,9 @@ class Brand:
                 font=font,
             )
 
-            timestamp = datetime.fromtimestamp(product.timestamp).strftime('(%a) %x @ %X')
+            timestamp = datetime.fromtimestamp(product.timestamp).strftime(
+                "(%a) %x @ %X"
+            )
             renderer.text(
                 (25, height - 25),
                 timestamp,
@@ -261,12 +339,21 @@ class Brand:
             )
 
             renderer.rectangle(
-                ((width-100, height - 55), (width - 20, height - 20)), fill="#d6d6d6"
+                ((width - 150, height - 55), (width - 20, height - 20)), fill="#d6d6d6"
             )
-            price = product.unit_price/100
+            price = product.unit_price / 100
             renderer.text(
-                (width-25, height - 40),
+                (width - 25, height - 40),
                 f"£{price:.2f}",
+                anchor="rs",
+                fill="#000000",
+                font=font,
+            )
+
+            per_price = product.price_per_weight / 100
+            renderer.text(
+                (width - 25, height - 25),
+                f"£{per_price:.2f} / {product.weight_unit}",
                 anchor="rs",
                 fill="#000000",
                 font=font,

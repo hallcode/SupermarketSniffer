@@ -1,10 +1,14 @@
-from brands.generic import Brand
+from brands.generic import Brand, NETWORK
 from brands.asda import AsdaBrand as Asda
+from brands.aldi import Aldi
 
+sainsburys = Brand("Sainsburys", "https://www.sainsburys.co.uk/")
+sainsburys.wait_method = NETWORK
 
 brands = [
-    # Brand("Tesco", "https://www.tesco.com/"),
-    # Brand("Sainsburys", "https://www.sainsburys.co.uk/"),
-    Brand("Morrisons", "https://groceries.morrisons.com/"),
+    Aldi("Aldi", "https://groceries.aldi.co.uk/")
     # Asda("ASDA", "https://www.asda.com/"),
+    # Brand("Tesco", "https://www.tesco.com/"),
+    # sainsburys,
+    # Brand("Morrisons", "https://groceries.morrisons.com/"),
 ]

@@ -39,7 +39,11 @@ class Product:
 
 
 search_categories = [
+    Category("Juice", "orange juice", "Soft Drink", 3),
     Category("Milk", "skimmed milk", "Dairy"),
+    Category("Juice", "apple juice", "Soft Drink", 3),
     Category("Eggs", "eggs", "Dairy"),
     Category("Butter", "spreadable butter", "Dairy"),
+    Category("Tea", "tea bags", "Hot Drink", 3),
+    Category("Coffee", "instant coffee", "Hot Drink", 3),
 ]

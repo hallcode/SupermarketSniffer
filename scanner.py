@@ -16,14 +16,16 @@ def scan(page: Page, brand: Brand, category: Category):
     brand.dismiss_cookie_notice()
 
     # Try to find the search bar
-    search_input = page.get_by_placeholder(re.compile("search|find", re.IGNORECASE))
+    search_input = page.get_by_placeholder(re.compile("search|find|looking", re.IGNORECASE))
     search_input = search_input.first
     search_input.fill(category.search_term)
     search_input.press("Enter")
-    page.wait_for_load_state("networkidle")
+    page.wait_for_load_state(brand.wait_method, timeout=180000)
 
     # Get product URLs
-    urls = brand.get_product_urls(search_term=category.search_term, limit=category.limit)
+    urls = brand.get_product_urls(
+        search_term=category.search_term, limit=category.limit
+    )
     products = []
     for u in urls:
         # The following line does all the work
