@@ -84,6 +84,18 @@ class Brand:
 
         return links
 
+    def string_contains_search_terms(self, string: str):
+        try:
+            terms = self.current_search_term.lower().split(" ")
+            string = string.lower()
+            for term in terms:
+                if term not in string:
+                    return False
+
+            return True
+        except AttributeError:
+            return False
+
     def product_list_item(self, element: Tag):
         """
         Return True if the element looks like a product listing
@@ -118,10 +130,9 @@ class Brand:
             return False
 
         # Must contain the search term(s) somewhere in the text
-        pattern = self.current_search_term.replace(" ", ".*")
         search_text_element = element.find(
             recursive=True,
-            string=re.compile(pattern, re.IGNORECASE),
+            string=self.string_contains_search_terms,
         )
         if search_text_element is None:
             return False
@@ -130,16 +141,18 @@ class Brand:
 
     def scan_product_page(self, product_url: str, category: Category):
         self.page.goto(product_url)
+        self.current_search_term = category.search_term
         self.page.wait_for_load_state("networkidle")
 
         # Create product object
+        price_per, unit = self.get_product_price_weight()
         product = Product(
             title=self.get_product_title(product_url),
             id=self.get_product_id(product_url),
             category=category,
             unit_price=int(self.get_product_price()),
-            price_per_weight=self.get_product_price_per_weight(),
-            weight_unit=self.get_product_unit(),
+            price_per_weight=price_per,
+            weight_unit=unit,
             url=product_url,
             seller=self.name,
         )
@@ -164,21 +177,20 @@ class Brand:
 
     def get_product_title(self, product_url: str = ""):
         # Try seeing if there is a header which contains the search term
-        pattern = self.current_search_term.replace(" ", ".*")
-        pattern = re.compile(pattern, re.IGNORECASE)
-        header = self.page.get_by_role("heading").filter(has_text=pattern).first
-        if header is not None:
-            return header.inner_text()
+        bs = BeautifulSoup(self.page.inner_html("body"), "lxml")
+        title_tag = bs.find(['h1', 'h2', 'h3', 'h4'], string=self.string_contains_search_terms)
+        if title_tag is not None:
+            return title_tag.get_text()
 
         # If not, does the URL contain the search term?
         search_term = self.current_search_term.replace(" ", "[\w\d-]*").lower()
-        pattern = f"\/([\w-]*{search_term}[\w\d-]*milk[\w-]*)[\/-]"
+        pattern = f"\/([\w-]*{search_term}[\w-]*)[\/-]"
         pattern = re.compile(pattern)
         path = urlparse(product_url).path
         match = re.search(pattern, path)
         if match:
             try:
-                return match.group(1)
+                return match.group(1).replace("-", " ").title()
             except:
                 pass
 
@@ -189,30 +201,32 @@ class Brand:
         Get the package price from the product page
         :return: the price of one unit IN PENCE
         """
+        pounds_pattern = re.compile('£(\d+\.\d+)\s*$')
+        pennies_pattern = re.compile('(\d+[.\d]+)p\s*$')
         bs = BeautifulSoup(self.page.inner_html("body"), "lxml")
         price_tag = bs.find(class_=re.compile("price"), recursive=True).find(
-            string=re.compile("£\d+\.\d+\w*$")
+            string=[pounds_pattern, pennies_pattern]
         )
 
-        if price_tag is None:
-            return 0
+        price = 0
 
-        price_raw = price_tag.get_text()
-        try:
-            price = re.compile("£(\d+\.\d+)\w*$").match(price_raw).group(1)
-            return float(price) * 100
-        except:
-            return 0
+        if price_tag is not None:
+            price_text = price_tag.get_text()
+            if price_text.startswith('£'):
+                price = float(price_text.lstrip('£')) * 100
+            if price_text.endswith('p'):
+                price = float(price_text.rstrip('p'))
 
-    def get_product_price_per_weight(self):
-        return 0
+        return price
 
-    def get_product_unit(self):
-        return ""
+    def get_product_price_weight(self):
+        pattern = re.compile('£(\d+\.\d+)\s?(?:per|\/)?\s?(each|[0-9]*[kgmltrie]+)')
+
+        return 0, "each"
 
     def screenshot_page(self, product: Product):
         output_path = os.path.join(
-            os.getcwd(), "output", date.today().isoformat(), "screenshots"
+            os.getcwd(), "output", date.today().isoformat()
         )
         if not os.path.exists(output_path):
             os.makedirs(output_path)

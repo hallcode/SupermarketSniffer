@@ -9,7 +9,7 @@ class CsvOutput:
         if not os.path.exists(output_path):
             os.makedirs(output_path)
 
-        self.file = open(os.path.join(output_path, "product-output.csv"), "w")
+        self.file = open(os.path.join(output_path, date.today().isoformat() + ".csv"), "w")
 
         self.file.write(
             '"uuid","id","seller","category","product","title","price","price_per","unit","url","timestamp"\n'

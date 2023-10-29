@@ -7,7 +7,7 @@ from playwright.sync_api import Page
 
 
 def scan(page: Page, brand: Brand, category: Category):
-    print("Starting " + brand.name)
+    print(f"Starting {brand.name} ({category.name})")
 
     # Init browser page
     brand.set_page(page)
@@ -23,7 +23,7 @@ def scan(page: Page, brand: Brand, category: Category):
     page.wait_for_load_state("networkidle")
 
     # Get product URLs
-    urls = brand.get_product_urls(search_term=category.search_term)
+    urls = brand.get_product_urls(search_term=category.search_term, limit=category.limit)
     products = []
     for u in urls:
         # The following line does all the work

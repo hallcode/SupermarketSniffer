@@ -3,10 +3,11 @@ from datetime import datetime
 
 
 class Category:
-    def __init__(self, name: str, search_term: str, product_type: str):
+    def __init__(self, name: str, search_term: str, product_type: str, limit: int = 5):
         self.name = name
         self.search_term = search_term
         self.product_type = product_type
+        self.limit = limit
 
 
 class Product:
@@ -39,5 +40,6 @@ class Product:
 
 search_categories = [
     Category("Milk", "skimmed milk", "Dairy"),
-    Category("Eggs", "large eggs", "Dairy"),
+    Category("Eggs", "eggs", "Dairy"),
+    Category("Butter", "spreadable butter", "Dairy"),
 ]
