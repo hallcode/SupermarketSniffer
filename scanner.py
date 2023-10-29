@@ -1,12 +1,9 @@
-
 import re
 from datetime import date
 
 from brands import Brand
 from product import Category, Product
 from playwright.sync_api import Page
-
-
 
 
 def scan(page: Page, brand: Brand, category: Category):

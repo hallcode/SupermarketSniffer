@@ -15,7 +15,6 @@ class Product:
         title: str,
         id: str,
         category: Category,
-        search_term: str,
         unit_price: int,
         price_per_weight: int,
         weight_unit: str,
@@ -25,7 +24,6 @@ class Product:
         self.id = id
         self.title = title
         self.category = category
-        self.search_term = search_term
         self.unit_price = unit_price
         self.price_per_weight = price_per_weight
         self.weight_unit = weight_unit
@@ -39,4 +37,7 @@ class Product:
         self.timestamp = today.timestamp()
 
 
-search_categories = [Category("Milk", "skimmed milk", "Dairy")]
+search_categories = [
+    Category("Milk", "skimmed milk", "Dairy"),
+    Category("Eggs", "large eggs", "Dairy"),
+]

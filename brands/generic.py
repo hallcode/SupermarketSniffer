@@ -1,11 +1,16 @@
-import os.path
+import os
 import re
 from playwright.sync_api import Page
 from bs4 import BeautifulSoup, Tag
 from urllib.parse import urlparse, urljoin
-import os.path
-from datetime import date
-from product import Category
+from datetime import date, datetime
+from product import Category, Product
+from PIL import Image, ImageDraw, ImageFont
+
+font = ImageFont.truetype(
+    font=os.path.join(os.getcwd(), "assets", "B612Mono-Regular.ttf"), size=10
+)
+
 
 class Brand:
     # This class contains all the functionality and _should_ work on each
@@ -49,7 +54,7 @@ class Brand:
         links = []
         bs = BeautifulSoup(self.page.inner_html("body"), "lxml")
         self.current_search_term = search_term
-        products = bs.find_all(self.product_list_item, limit=limit*2)
+        products = bs.find_all(self.product_list_item, limit=limit * 2)
 
         for p in products:
             if len(links) >= limit:
@@ -64,15 +69,17 @@ class Brand:
                 continue
 
             link = urlparse(link_tag["href"])
-            if link.netloc == '':
+            if link.netloc == "":
                 link = urljoin(
-                    current_base_url.scheme + '://' + current_base_url.netloc, link.path
+                    current_base_url.scheme + "://" + current_base_url.netloc, link.path
                 )
+            else:
+                link = link_tag["href"]
 
             if link in links:
                 continue
 
-            links.append(str(link))
+            links.append(link)
 
         return links
 
@@ -109,10 +116,11 @@ class Brand:
         if offer_text is not None:
             return False
 
-        # Must contain the search term somewhere in the text
+        # Must contain the search term(s) somewhere in the text
+        pattern = self.current_search_term.replace(" ", ".*")
         search_text_element = element.find(
             recursive=True,
-            string=re.compile(self.current_search_term, re.IGNORECASE),
+            string=re.compile(pattern, re.IGNORECASE),
         )
         if search_text_element is None:
             return False
@@ -120,33 +128,59 @@ class Brand:
         return True
 
     def scan_product_page(self, product_url: str, category: Category):
-        output_path = os.path.join(os.getcwd(), "output", date.today().isoformat(), self.name)
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-
         self.page.goto(product_url)
         self.page.wait_for_load_state('networkidle')
 
-        screenshot_name = self.page.title().replace(' ', '_').lower() + ".png"
-        self.page.screenshot(path=os.path.join(output_path, screenshot_name))
+        product = Product(
+            title=self.page.title(),
+            id="n/a",
+            category=category,
+            unit_price=0,
+            price_per_weight=0,
+            weight_unit="",
+            url=product_url,
+            seller=self.name
+        )
+
+        self.screenshot_page(product)
+
+        return product
+
+    def screenshot_page(self, product: Product):
+        output_path = os.path.join(
+            os.getcwd(), "output", date.today().isoformat(), self.name
+        )
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+        screenshot_name = str(product.uuid) + ".png"
+        screenshot_path = os.path.join(output_path, screenshot_name)
+        self.page.screenshot(path=screenshot_path)
+
+        # Stamp image
+        with Image.open(screenshot_path) as screenshot:
+            screenshot.thumbnail((900, 750))
+            width, height = screenshot.width, screenshot.height
+            renderer = ImageDraw.Draw(screenshot)
+            renderer.rectangle(
+                ((20, height - 55), (width - 20, height - 20)), fill="#FFFFFF"
+            )
+            renderer.text(
+                (25, height - 40),
+                product.url,
+                anchor="ls",
+                fill="#000000",
+                font=font,
+            )
+
+            timestamp = datetime.fromtimestamp(product.timestamp).isoformat()
+            renderer.text(
+                (25, height - 25),
+                timestamp,
+                anchor="ls",
+                fill="#000000",
+                font=font,
+            )
+            screenshot.save(screenshot_path)
 
 
-class Asda(Brand):
-    def dismiss_cookie_notice(self):
-        if not self.page:
-            raise Exception
-
-        try:
-            cookie_button = self.page.locator("#onetrust-accept-btn-handler")
-            cookie_button.click()
-            self.page.wait_for_load_state("domcontentloaded")
-        except:
-            pass
-
-
-brands = [
-    Brand("Tesco", "https://www.tesco.com/"),
-    # Brand("Sainsburys", "https://www.sainsburys.co.uk/"),
-    # Brand("Morrisons", "https://groceries.morrisons.com/"),
-    Asda("ASDA", "https://www.asda.com/"),
-]
