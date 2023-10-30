@@ -26,4 +26,4 @@ class AsdaBrand(Brand):
                 pass
             return product_details.first
 
-        return self.page.get_by_role("main").or_(self.page.locator('body')).first
+        return self.page.get_by_role("main").or_(self.page.locator("body")).last

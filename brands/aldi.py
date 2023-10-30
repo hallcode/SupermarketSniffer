@@ -1,7 +1,11 @@
-from brands.generic import Brand
+from brands.generic import Brand, NETWORK
 
 
 class Aldi(Brand):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.wait_method = NETWORK
+
     def dismiss_cookie_notice(self):
         if not self.page:
             raise Exception
@@ -12,3 +16,14 @@ class Aldi(Brand):
             self.page.wait_for_load_state("domcontentloaded")
         except:
             pass
+
+    def get_main_element(self):
+        product_details = self.page.locator("#product-summary")
+        if product_details:
+            try:
+                product_details.first.scroll_into_view_if_needed(timeout=200)
+            except:
+                pass
+            return product_details.first
+
+        return self.page.get_by_role("main").or_(self.page.locator("body")).last

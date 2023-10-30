@@ -62,8 +62,7 @@ class Brand:
         current_base_url = urlparse(self.page.url)
 
         links = []
-        main_by_role = self.page.get_by_role("main").or_(self.page.locator('body'))
-        main_by_role.highlight()
+        main_by_role = self.page.get_by_role("main").or_(self.page.locator("body")).last
         bs = BeautifulSoup(main_by_role.inner_html(), "lxml")
         self.current_search_term = search_term
         products = bs.find_all(self.product_list_item, limit=limit * 2)
@@ -75,10 +74,17 @@ class Brand:
             link_tag = p.find(
                 "a",
                 recursive=True,
-                attrs={"href": re.compile("product|item", re.IGNORECASE)},
+                href=re.compile("product|item", re.IGNORECASE),
             )
             if link_tag is None:
-                continue
+                # If we didn't find it, try another method
+                link_tag = p.find(
+                    "a",
+                    recursive=True,
+                    attrs={"data-oc-click": "searchProductClick"},
+                )
+                if link_tag is None:
+                    continue
 
             link = urlparse(link_tag["href"])
             if link.netloc == "":
@@ -96,11 +102,10 @@ class Brand:
         return links
 
     def get_main_element(self):
-        main_by_role = self.page.get_by_role("main").or_(self.page.locator('body'))
+        main_by_role = self.page.get_by_role("main").or_(self.page.locator("body")).last
         if main_by_role:
             main_by_role.scroll_into_view_if_needed()
             return main_by_role
-
 
     def string_contains_search_terms(self, string: str):
         try:
@@ -151,10 +156,11 @@ class Brand:
             return False
 
         # Must contain a link which includes the words product or item
+        st = self.current_search_term.replace(" ", "|")
         product_link = element.find(
             "a",
             recursive=True,
-            attrs={"href": re.compile("product|item", re.IGNORECASE)},
+            href=re.compile(rf"product|item|{st}", re.IGNORECASE),
         )
         if product_link is None:
             return False
@@ -328,7 +334,7 @@ class Brand:
             )
 
             timestamp = datetime.fromtimestamp(product.timestamp).strftime(
-                "(%a) %x @ %X"
+                "%d/%b/%Y (%a) %X"
             )
             renderer.text(
                 (25, height - 25),

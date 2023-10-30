@@ -6,9 +6,9 @@ sainsburys = Brand("Sainsburys", "https://www.sainsburys.co.uk/")
 sainsburys.wait_method = NETWORK
 
 brands = [
-    Aldi("Aldi", "https://groceries.aldi.co.uk/")
-    # Asda("ASDA", "https://www.asda.com/"),
-    # Brand("Tesco", "https://www.tesco.com/"),
-    # sainsburys,
-    # Brand("Morrisons", "https://groceries.morrisons.com/"),
+    Aldi("Aldi", "https://groceries.aldi.co.uk/"),
+    Asda("ASDA", "https://www.asda.com/"),
+    Brand("Morrisons", "https://groceries.morrisons.com/"),
+    sainsburys,
+    Brand("Tesco", "https://www.tesco.com/"),
 ]
