@@ -7,7 +7,7 @@ from playwright.sync_api import Page
 
 
 def scan(page: Page, brand: Brand, category: Category):
-    print(f"Starting {brand.name} ({category.name})")
+    print(f"\n{brand.name} ({category.name}) ", end="")
 
     # Init browser page
     brand.set_page(page)
@@ -30,5 +30,11 @@ def scan(page: Page, brand: Brand, category: Category):
     )
     products = []
     for u in urls:
-        # The following line does all the work
-        brand.scan_product_page(u, category)
+        try:
+            # The following line does all the work
+            brand.scan_product_page(u, category)
+            print("#", end="")
+        except:
+            # This will be running unattended on a server so, we
+            # want it to just carry on come what may
+            continue

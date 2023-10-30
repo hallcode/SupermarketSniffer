@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup, Tag
 from urllib.parse import urlparse, urljoin
 from datetime import date, datetime
 from product import Category, Product
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from csv import csv
 
 font = ImageFont.truetype(
@@ -31,6 +31,11 @@ class Brand:
         self.name = name
         self.start_url = start_url
         self.wait_method = DOM
+        self.watermark = Image.open(os.path.join(os.getcwd(), 'assets', 'LogoIcon@2x.png'))
+        self.watermark = self.watermark.resize((41, 41))
+
+    def __del__(self):
+        self.watermark.close()
 
     def set_page(self, page: Page):
         self.page = page
@@ -204,6 +209,15 @@ class Brand:
             return product
 
         csv.add_line(product)
+
+        # Detect location of images so we can blur them out later
+        # This is for copywright reasons
+        images = self.page.get_by_role("img").all()
+        if len(images) > 0:
+            self.images = []
+            for img in images:
+                self.images.append(img.bounding_box())
+
         self.screenshot_page(product)
 
         return product
@@ -313,13 +327,41 @@ class Brand:
         if not os.path.exists(output_path):
             os.makedirs(output_path)
 
-        screenshot_name = str(product.uuid) + ".png"
+        screenshot_name = str(product.uuid) + ".jpg"
         screenshot_path = os.path.join(output_path, screenshot_name)
-        self.page.screenshot(path=screenshot_path)
+        self.page.screenshot(path=screenshot_path, type="jpeg")
 
         # Stamp image
         with Image.open(screenshot_path) as screenshot:
+            # Cover images
+            if self.images:
+                for img in self.images:
+                    if img["x"] < 0 or img["y"] < 0:
+                        continue
+
+                    if img["x"] > screenshot.width or img["y"] > screenshot.height:
+                        continue
+
+                    if img["x"] + img["width"] > screenshot.width:
+                        img['width'] = screenshot.width - img["x"]
+
+                    if img["y"] + img["height"] > screenshot.height:
+                        img["height"] = screenshot.height - img["y"]
+
+                    img_part = screenshot.crop(
+                        (
+                            int(img["x"]),
+                            int(img["y"]),
+                            int(img["x"]) + int(img["width"]),
+                            int(img["y"]) + int(img["height"]),
+                        )
+                    )
+                    img_part = img_part.filter(ImageFilter.GaussianBlur(18))
+                    screenshot.paste(img_part, (int(img["x"]), int(img["y"])))
+
             screenshot.thumbnail((900, 750))
+            screenshot.paste(self.watermark, (20, 20), mask=self.watermark)
+
             width, height = screenshot.width, screenshot.height
             renderer = ImageDraw.Draw(screenshot)
             renderer.rectangle(
@@ -364,4 +406,8 @@ class Brand:
                 fill="#000000",
                 font=font,
             )
-            screenshot.save(screenshot_path)
+
+            try:
+                screenshot.save(screenshot_path, quality="web_low")
+            except OSError as e:
+                print(" ** Unable to save Image: " + str(e))
