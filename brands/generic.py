@@ -27,12 +27,13 @@ class Brand:
     # in which case the class can be extended and methods overridden to
     # make it work.
 
-    def __init__(self, name: str, start_url):
+    def __init__(self, name: str, start_url, seller_id=0):
         self.name = name
         self.start_url = start_url
         self.wait_method = DOM
         self.watermark = Image.open(os.path.join(os.getcwd(), 'assets', 'LogoIcon@2x.png'))
         self.watermark = self.watermark.resize((41, 41))
+        self.seller_id = seller_id
 
     def __del__(self):
         self.watermark.close()
@@ -310,7 +311,7 @@ class Brand:
 
             # Conform units to SI units
             if unit in ("each", "Each", "EACH", "ea"):
-                unit = "EACH"
+                unit = ""
             elif unit in ("l", "L", "litre", "liter", "lt", "ltr", "Ltr"):
                 unit = "L"
             elif unit in ("100g", "100G", "100 grams"):
