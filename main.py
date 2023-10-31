@@ -7,7 +7,7 @@ import csv
 
 def start_scan():
     with sync_playwright() as p:
-        browser = p.firefox.launch(headless=True)
+        browser = p.firefox.launch(headless=False)
 
         for brand in brands:
             for category in search_categories:

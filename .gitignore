@@ -161,3 +161,5 @@ cython_debug/
 
 # We also don't want to commit any output
 output/*
+
+credentials.py

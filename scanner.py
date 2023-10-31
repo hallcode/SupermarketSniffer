@@ -34,7 +34,8 @@ def scan(page: Page, brand: Brand, category: Category):
             # The following line does all the work
             brand.scan_product_page(u, category)
             print("#", end="")
-        except:
+        except Exception as e:
             # This will be running unattended on a server so, we
             # want it to just carry on come what may
+            print(str(e))
             continue

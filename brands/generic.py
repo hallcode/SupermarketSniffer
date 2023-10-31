@@ -1,12 +1,16 @@
+import base64
+import io
 import os
 import re
+import tempfile
+
 from playwright.sync_api import Page
 from bs4 import BeautifulSoup, Tag
 from urllib.parse import urlparse, urljoin
 from datetime import date, datetime
 from product import Category, Product
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-from csv import csv
+from file_storage import save_file
 
 font = ImageFont.truetype(
     font=os.path.join(os.getcwd(), "assets", "B612Mono-Regular.ttf"), size=10
@@ -28,10 +32,14 @@ class Brand:
     # make it work.
 
     def __init__(self, name: str, start_url, seller_id=0):
+        self.current_search_term = None
+        self.screenshot_url = None
         self.name = name
         self.start_url = start_url
         self.wait_method = DOM
-        self.watermark = Image.open(os.path.join(os.getcwd(), 'assets', 'LogoIcon@2x.png'))
+        self.watermark = Image.open(
+            os.path.join(os.getcwd(), "assets", "LogoIcon@2x.png")
+        )
         self.watermark = self.watermark.resize((41, 41))
         self.seller_id = seller_id
 
@@ -209,8 +217,6 @@ class Brand:
         if product.unit_price == 0:
             return product
 
-        csv.add_line(product)
-
         # Detect location of images so we can blur them out later
         # This is for copywright reasons
         images = self.page.get_by_role("img").all()
@@ -324,16 +330,12 @@ class Brand:
         return int(price), unit
 
     def screenshot_page(self, product: Product):
-        output_path = os.path.join(os.getcwd(), "output", date.today().isoformat())
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-
-        screenshot_name = str(product.uuid) + ".jpg"
-        screenshot_path = os.path.join(output_path, screenshot_name)
-        self.page.screenshot(path=screenshot_path, type="jpeg")
+        image_store = io.BytesIO()
+        image_store.write(self.page.screenshot(type="jpeg"))
+        image_store.seek(0)
 
         # Stamp image
-        with Image.open(screenshot_path) as screenshot:
+        with Image.open(image_store) as screenshot:
             # Cover images
             if self.images:
                 for img in self.images:
@@ -344,7 +346,7 @@ class Brand:
                         continue
 
                     if img["x"] + img["width"] > screenshot.width:
-                        img['width'] = screenshot.width - img["x"]
+                        img["width"] = screenshot.width - img["x"]
 
                     if img["y"] + img["height"] > screenshot.height:
                         img["height"] = screenshot.height - img["y"]
@@ -408,7 +410,8 @@ class Brand:
                 font=font,
             )
 
-            try:
-                screenshot.save(screenshot_path, quality="web_low")
-            except OSError as e:
-                print(" ** Unable to save Image: " + str(e))
+            # Save to azure
+            image_store.seek(0)
+            screenshot.save(image_store, format="jpeg", quality="web_low")
+            screenshot_name = str(product.uuid) + ".jpg"
+            self.screenshot_url = save_file(name=screenshot_name, file=image_store)
