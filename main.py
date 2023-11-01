@@ -1,5 +1,5 @@
 from brands import brands
-from product import search_categories
+from product import Category
 from scanner import scan
 from playwright.sync_api import sync_playwright
 import csv
@@ -10,7 +10,7 @@ def start_scan():
         browser = p.firefox.launch(headless=False)
 
         for brand in brands:
-            for category in search_categories:
+            for category in Category.get_all():
                 try:
                     page = browser.new_page()
                     scan(page, brand, category)

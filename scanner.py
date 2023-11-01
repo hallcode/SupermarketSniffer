@@ -7,7 +7,7 @@ from playwright.sync_api import Page
 
 
 def scan(page: Page, brand: Brand, category: Category):
-    print(f"\n{brand.name} ({category.name}) ", end="")
+    print(f"\n{brand.name} {category.code} ", end="")
 
     # Init browser page
     brand.set_page(page)
@@ -30,6 +30,8 @@ def scan(page: Page, brand: Brand, category: Category):
     )
     products = []
     for u in urls:
+        if Product.exists(u):
+            continue
         try:
             # The following line does all the work
             brand.scan_product_page(u, category)

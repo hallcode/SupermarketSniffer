@@ -1,13 +1,11 @@
-import base64
 import io
 import os
 import re
-import tempfile
 
 from playwright.sync_api import Page
 from bs4 import BeautifulSoup, Tag
 from urllib.parse import urlparse, urljoin
-from datetime import date, datetime
+from datetime import datetime
 from product import Category, Product
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from file_storage import save_file
@@ -33,7 +31,6 @@ class Brand:
 
     def __init__(self, name: str, start_url, seller_id=0):
         self.current_search_term = None
-        self.screenshot_url = None
         self.name = name
         self.start_url = start_url
         self.wait_method = DOM
@@ -117,9 +114,7 @@ class Brand:
 
     def get_main_element(self):
         main_by_role = self.page.get_by_role("main").or_(self.page.locator("body")).last
-        if main_by_role:
-            main_by_role.scroll_into_view_if_needed()
-            return main_by_role
+        return main_by_role
 
     def string_contains_search_terms(self, string: str):
         try:
@@ -197,6 +192,9 @@ class Brand:
         return True
 
     def scan_product_page(self, product_url: str, category: Category):
+        if Product.exists(product_url):
+            return
+
         self.page.goto(product_url)
         self.current_search_term = category.search_term
         self.page.wait_for_load_state(self.wait_method, timeout=180000)
@@ -211,7 +209,7 @@ class Brand:
             price_per_weight=price_per,
             weight_unit=unit,
             url=product_url,
-            seller=self.name,
+            seller=self,
         )
 
         if product.unit_price == 0:
@@ -225,8 +223,14 @@ class Brand:
             for img in images:
                 self.images.append(img.bounding_box())
 
-        self.screenshot_page(product)
+        main_element = self.get_main_element()
+        try:
+            main_element.scroll_into_view_if_needed(timeout=100)
+        except:
+            pass
 
+        product.screenshot_url = self.screenshot_page(product)
+        product.save()
         return product
 
     def get_product_id(self, product_url: str = ""):
@@ -278,13 +282,6 @@ class Brand:
 
         if price_tag is not None:
             price_text = price_tag.get_text()
-            try:
-                self.page.locator(
-                    price_tag.parent.name, has_text=price_text
-                ).first.scroll_into_view_if_needed()
-            except:
-                pass
-
             if price_text.startswith("£"):
                 price = float(price_text.lstrip("£")) * 100
             if price_text.endswith("p"):
@@ -293,7 +290,6 @@ class Brand:
         return price
 
     def get_product_price_weight(self):
-        self.page.wait_for_load_state(DOM)
         html = self.get_main_element().inner_html()
         html = re.sub(r"<!.*?->", "", html)
         bs = BeautifulSoup(html, "lxml")
@@ -317,7 +313,7 @@ class Brand:
 
             # Conform units to SI units
             if unit in ("each", "Each", "EACH", "ea"):
-                unit = ""
+                unit = None
             elif unit in ("l", "L", "litre", "liter", "lt", "ltr", "Ltr"):
                 unit = "L"
             elif unit in ("100g", "100G", "100 grams"):
@@ -326,6 +322,8 @@ class Brand:
                 unit = "dL"  # Decilitre (100ml) - not to be confused with decAlitre
             elif unit in ("KG", "kg", "kilo", "kilogram", "Kilo", "Kilogram"):
                 unit = "kg"
+            else:
+                unit = "?"
 
         return int(price), unit
 
@@ -414,4 +412,4 @@ class Brand:
             image_store.seek(0)
             screenshot.save(image_store, format="jpeg", quality="web_low")
             screenshot_name = str(product.uuid) + ".jpg"
-            self.screenshot_url = save_file(name=screenshot_name, file=image_store)
+            return save_file(name=screenshot_name, file=image_store)
