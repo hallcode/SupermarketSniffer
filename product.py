@@ -33,7 +33,9 @@ class Category:
                 groups=sql.Identifier("groups"),
                 group_key=sql.Identifier("groups", "id"),
             )
+
             conn.execute(query)
+
             while True:
                 row = conn.fetchone()
                 if row is None:
@@ -107,7 +109,7 @@ class Product:
                         self.weight_unit,
                         self.url,
                         self.screenshot_url,
-                        datetime.fromtimestamp(self.timestamp)
+                        datetime.fromtimestamp(self.timestamp),
                     ),
                 )
                 db_connection.commit()
@@ -129,5 +131,3 @@ class Product:
             )
             conn.execute(select_dups, (product_url,))
             return conn.fetchone()[0] > 0
-
-
