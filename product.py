@@ -9,7 +9,7 @@ from database import db_connection
 from psycopg2 import sql
 
 
-class Category:
+class Group:
     def __init__(self, code: str, group_code: str, search_term: str, limit: int = 5):
         self.code = code
         self.group_code = group_code

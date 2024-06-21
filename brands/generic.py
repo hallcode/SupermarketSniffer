@@ -29,7 +29,7 @@ class Brand:
     # in which case the class can be extended and methods overridden to
     # make it work.
 
-    def __init__(self, name: str, start_url, seller_id=0):
+    def __init__(self, id: int, name: str, start_url, wait_method: str):
         self.current_search_term = None
         self.name = name
         self.start_url = start_url

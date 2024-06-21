@@ -5,7 +5,7 @@ from credentials import (
     AWS_SECRET_KEY,
     AWS_S3_BUCKET,
     AWS_S3_SCREENSHOT_DIR,
-    AWS_S3_PUBLIC_PATH
+    AWS_S3_PUBLIC_PATH,
 )
 
 

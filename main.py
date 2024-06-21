@@ -1,31 +1,30 @@
-from brands import brands
-from product import Category
-from scanner import scan
-from playwright.sync_api import sync_playwright
-import csv
-
+from database import db_engine
+from sqlalchemy.orm import Session
+from sqlalchemy import select
+from models.brand import Brand
+from models.product import Product
+from models.price import Price
+from scanner import Scanner
 
 def start_scan():
-    with sync_playwright() as p:
-        browser = p.firefox.launch(headless=False)
+    # Create database session
+    with Session(db_engine) as session:
+        # Get all the stuff we'll need
+        select_brands = select(Brand)
+        select_products = select(Product).where(Product.active == True)
 
-        for brand in brands:
-            for category in Category.get_all():
+        for brand_row in session.execute(select_brands):
+            print(f"Starting brand: {brand_row.Brand.name}")
+            scanner = Scanner(brand=brand_row.Brand, limit=3, headless=False)
+            for product_row in session.execute(select_products):
+                print(f" - Product: {product_row.Product.name}")
                 try:
-                    page = browser.new_page()
-                    scan(page, brand, category)
-                    page.close()
-                except:
-                    # This will be running unattended on a server so, we
-                    # want it to just carry on come what may
-                    print(
-                        f' ** Error scanning for "{category.search_term}" at {brand.name}'
-                    )
-                    continue
-
-        browser.contexts.clear()
-        browser.close()
-
+                    prices = scanner.search(product_row.Product)
+                    session.add_all(prices)
+                    session.commit()
+                except Exception as e:
+                    print(f" * Something went wrong adding {brand_row.Brand.name}/{product_row.Product.name}")
+                    print(f"     > {str(e)}")
 
 if __name__ == "__main__":
     start_scan()
